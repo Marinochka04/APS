@@ -334,7 +334,7 @@ def manage_courses_and_teachers(school, app_instance):
     start_time = time.time()
     last_teacher_removal_time = 0
     delay_before_removal = 15
-    removal_interval = 60
+    lambda_removal = 1 / 30
 
     while True:
         if not app_instance.paused:
@@ -343,9 +343,11 @@ def manage_courses_and_teachers(school, app_instance):
                     school.assign_next_teacher(course)
 
             current_time = time.time()
-            if (current_time - start_time >= delay_before_removal and
-                current_time - last_teacher_removal_time >= removal_interval):
-                if random.random() < 0.5:
+
+            if current_time - start_time >= delay_before_removal:
+                removal_interval = random.expovariate(lambda_removal)
+
+                if current_time - last_teacher_removal_time >= removal_interval:
                     courses_with_teachers = [course for course in school.courses if course.teacher]
                     if courses_with_teachers:
                         random.choice(courses_with_teachers).remove_teacher(school)
@@ -357,6 +359,7 @@ def manage_courses_and_teachers(school, app_instance):
             ApplicationQueue.process_queue()
 
         sleep(5)
+
 
 def main():
     course1 = Course("Painting", capacity=2)
