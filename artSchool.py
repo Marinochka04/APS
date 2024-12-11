@@ -58,6 +58,7 @@ class Application:
             action="Заявка отправлена",
             details=f"Заявка {self.student.id} отправлена на курс {self.course.title}"
         )
+        ApplicationQueue.total_applications += 1
         self.course.receive_application(self)
 
     def cancel(self):
@@ -125,11 +126,15 @@ class Course:
 
 class ApplicationQueue:
     applications = []
-    MAX_QUEUE_SIZE = 5
+    MAX_QUEUE_SIZE = 1
+
+    total_applications = 0
+    total_refusals = 0
 
     @classmethod
     def add(cls, application):
         cls.applications.append(application)
+
         ActionLogger.add_entry(
             source="ApplicationQueue",
             action="Заявка добавлена",
@@ -147,11 +152,17 @@ class ApplicationQueue:
                 key=lambda app: app.student.id
             )
             cls.applications.remove(max_id_application)
+            cls.total_refusals += 1
             ActionLogger.add_entry(
                 source="ApplicationQueue",
                 action="Заявка удалена",
                 details=f"Заявка {max_id_application.student.id} удалена из-за переполнения"
             )
+
+    @classmethod
+    def get_refusals(cls):
+        refusal_rate = (cls.total_refusals / cls.total_applications * 100) if cls.total_applications > 0 else 0
+        return cls.total_applications, cls.total_refusals, refusal_rate
 
     @classmethod
     def notify_school(cls):
@@ -233,8 +244,9 @@ class ArtSchoolApp:
         tk.Button(button_frame, text="Check Queue", command=self.check_queue).grid(row=0, column=0, pady=10)
         tk.Button(button_frame, text="Show Enrolled Students", command=self.show_students).grid(row=1, column=0, pady=10)
         tk.Button(button_frame, text="View Log", command=self.view_log).grid(row=2, column=0, pady=10)
-        tk.Button(button_frame, text="Show Chart", command=self.show_dynamic_chart).grid(row=4, column=0, pady=10)
-        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=3, column=0, pady=10)
+        tk.Button(button_frame, text="Show Chart", command=self.show_dynamic_chart).grid(row=3, column=0, pady=10)
+        tk.Button(button_frame, text="Show Refusals", command=self.show_refusals).grid(row=4, column=0, pady=10)
+        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=5, column=0, pady=10)
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -314,6 +326,29 @@ class ArtSchoolApp:
         self.canvas.draw()
 
         self.chart_window.after(1000, self.update_dynamic_chart)
+
+    def show_refusals(self):
+        if hasattr(self, 'refusals_window') and self.refusals_window.winfo_exists():
+            self.update_refusals_window()
+        else:
+            self.refusals_window = tk.Toplevel(self.root)
+            self.refusals_window.title("Refusals")
+
+            self.refusals_label = tk.Label(self.refusals_window, text="", justify=tk.LEFT)
+            self.refusals_label.pack(pady=10, padx=10)
+
+            self.update_refusals_window()
+
+    def update_refusals_window(self):
+        total_applications, total_refusals, refusal_rate = ApplicationQueue.get_refusals()
+        stats_table = f"""
+        Число заявок: {total_applications}
+        Число отказов: {total_refusals}
+        Процент отказов: {refusal_rate:.2f}%
+        """
+        self.refusals_label.config(text=stats_table)
+        self.refusals_window.after(1000, self.update_refusals_window)
+
 
 def generate_applications(school, app_instance):
     student_id = 1
