@@ -126,7 +126,7 @@ class Course:
 
 class ApplicationQueue:
     applications = []
-    MAX_QUEUE_SIZE = 1
+    MAX_QUEUE_SIZE = 5
 
     total_applications = 0
     total_refusals = 0
@@ -220,6 +220,16 @@ class School:
                 details=f"Заявка {application.student.id} выбрана для обработки"
             )
 
+    def get_teacher_utilization(self):
+        utilization_data = {}
+        for teacher in self.teachers:
+            is_busy = any(course.teacher == teacher for course in self.courses)
+            total_courses = len(self.courses)
+            busy_courses = sum(1 for course in self.courses if course.teacher == teacher)
+            utilization = (busy_courses / total_courses * 100) if total_courses > 0 else 0
+            utilization_data[teacher] = (is_busy, utilization)
+        return utilization_data
+
 class Teacher:
     def __init__(self, name, subject):
         self.name = name
@@ -246,7 +256,11 @@ class ArtSchoolApp:
         tk.Button(button_frame, text="View Log", command=self.view_log).grid(row=2, column=0, pady=10)
         tk.Button(button_frame, text="Show Chart", command=self.show_dynamic_chart).grid(row=3, column=0, pady=10)
         tk.Button(button_frame, text="Show Refusals", command=self.show_refusals).grid(row=4, column=0, pady=10)
-        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=5, column=0, pady=10)
+        tk.Button(button_frame, text="Show Teacher Utilization", command=self.show_teacher_utilization).grid(row=5,
+                                                                                                             column=0,
+                                                                                                             pady=10)
+
+        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=6, column=0, pady=10)
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -349,6 +363,27 @@ class ArtSchoolApp:
         self.refusals_label.config(text=stats_table)
         self.refusals_window.after(1000, self.update_refusals_window)
 
+    def show_teacher_utilization(self):
+        if hasattr(self, 'utilization_window') and self.utilization_window.winfo_exists():
+            self.update_teacher_utilization_window()
+        else:
+            self.utilization_window = tk.Toplevel(self.root)
+            self.utilization_window.title("Teacher Utilization")
+
+            self.utilization_label = tk.Label(self.utilization_window, text="", justify=tk.LEFT)
+            self.utilization_label.pack(pady=10, padx=10)
+
+            self.update_teacher_utilization_window()
+
+    def update_teacher_utilization_window(self):
+        utilization_data = self.school.get_teacher_utilization()
+        utilization_table = "Прибор         | Занятость | % Занятости\n" + "-" * 35 + "\n"
+        for teacher, (is_busy, utilization) in utilization_data.items():
+            status = "Занят" if is_busy else "Свободен"
+            utilization_table += f"{teacher.name:<14} | {status:<9} | {utilization:.2f}%\n"
+
+        self.utilization_label.config(text=utilization_table)
+        self.utilization_window.after(1000, self.update_teacher_utilization_window)
 
 def generate_applications(school, app_instance):
     student_id = 1
