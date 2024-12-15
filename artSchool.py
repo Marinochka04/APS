@@ -47,7 +47,7 @@ class Student:
         return application
 
 class Application:
-    application_counter = 1  # Статический счетчик заявок
+    application_counter = 1
 
     def __init__(self, student, course):
         self.student = student
@@ -60,7 +60,7 @@ class Application:
         ActionLogger.add_entry(
             source="Student",
             action="Заявка отправлена",
-            details=f"Заявка {self.id} отправлена на курс {self.course.title}"
+            details=f"Заявка {self.id}({self.student.name}) отправлена на курс {self.course.title}"
         )
         ApplicationQueue.total_applications += 1
         self.course.receive_application(self)
@@ -128,7 +128,6 @@ class Course:
                 details=f"Преподаватель {removed_teacher.name} был удалён с курса {self.title}"
             )
             school.assign_next_teacher(self)
-
 class ApplicationQueue:
     applications = []
     MAX_QUEUE_SIZE = 2
@@ -143,7 +142,7 @@ class ApplicationQueue:
         ActionLogger.add_entry(
             source="ApplicationQueue",
             action="Заявка добавлена",
-            details=f"Заявка {application.student.id} добавлена в очередь"
+            details=f"Заявка {application.id}({application.student.name}) добавлена в очередь"
         )
 
         if len(cls.applications) > cls.MAX_QUEUE_SIZE:
@@ -152,16 +151,15 @@ class ApplicationQueue:
     @classmethod
     def remove_lowest_priority(cls):
         if cls.applications:
-            max_id_application = max(
-                cls.applications,
-                key=lambda app: app.student.id
-            )
-            cls.applications.remove(max_id_application)
+            application_to_remove = max(cls.applications, key=lambda app: app.student.id)
+
+            cls.applications.remove(application_to_remove)
             cls.total_refusals += 1
+
             ActionLogger.add_entry(
                 source="ApplicationQueue",
                 action="Заявка удалена",
-                details=f"Заявка {max_id_application.student.id} удалена из-за переполнения"
+                details=f"Заявка {application_to_remove.id}({application_to_remove.student.name}) удалена из-за переполнения"
             )
 
     @classmethod
@@ -176,13 +174,15 @@ class ApplicationQueue:
 
     @classmethod
     def process_queue(cls):
+        cls.applications.sort(key=lambda app: app.id)
+
         for application in cls.applications:
             if application.course.check_availability():
                 application.course.receive_application(application)
                 ActionLogger.add_entry(
                     source="ApplicationQueue",
                     action="Заявка обработана",
-                    details=f"Заявка {application.student.id} из очереди записана на курс {application.course.title}"
+                    details=f"Заявка {application.id}({application.student.name}) из очереди записана на курс {application.course.title}"
                 )
                 cls.applications.remove(application)
 
@@ -416,7 +416,7 @@ class ArtSchoolApp:
         summary_window.geometry("600x400")
 
         total_applications, total_refusals, refusal_rate = ApplicationQueue.get_refusals()
-        num_sources = len(self.school.students)  # Число источников равно числу студентов
+        num_sources = len(self.school.students)
 
         summary_label = tk.Label(summary_window, text="Общие данные", font=("Arial", 14, "bold"))
         summary_label.pack(pady=10)
