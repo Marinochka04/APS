@@ -47,22 +47,27 @@ class Student:
         return application
 
 class Application:
+    application_counter = 1  # Статический счетчик заявок
+
     def __init__(self, student, course):
         self.student = student
         self.course = course
         self.status = "waiting"
+        self.id = Application.application_counter
+        Application.application_counter += 1
 
     def submit(self):
         ActionLogger.add_entry(
             source="Student",
             action="Заявка отправлена",
-            details=f"Заявка {self.student.id} отправлена на курс {self.course.title}"
+            details=f"Заявка {self.id} отправлена на курс {self.course.title}"
         )
         ApplicationQueue.total_applications += 1
         self.course.receive_application(self)
 
     def cancel(self):
         self.status = "cancelled"
+
 
 class Course:
     def __init__(self, title, capacity, school=None):
@@ -244,6 +249,7 @@ class ArtSchoolApp:
     def __init__(self, root, school):
         self.root = root
         self.school = school
+        self.application_limit = tk.IntVar(value=0)
 
         self.root.title("Art School Enrollment System")
         self.root.geometry("600x400")
@@ -251,16 +257,20 @@ class ArtSchoolApp:
         button_frame = tk.Frame(root)
         button_frame.pack(pady=20)
 
-        tk.Button(button_frame, text="Check Queue", command=self.check_queue).grid(row=0, column=0, pady=10)
-        tk.Button(button_frame, text="Show Enrolled Students", command=self.show_students).grid(row=1, column=0, pady=10)
-        tk.Button(button_frame, text="View Log", command=self.view_log).grid(row=2, column=0, pady=10)
-        tk.Button(button_frame, text="Show Chart", command=self.show_dynamic_chart).grid(row=3, column=0, pady=10)
-        tk.Button(button_frame, text="Show Refusals", command=self.show_refusals).grid(row=4, column=0, pady=10)
-        tk.Button(button_frame, text="Show Teacher Utilization", command=self.show_teacher_utilization).grid(row=5,
+        tk.Label(button_frame, text="Количество заявок:").grid(row=0, column=0, pady=10, sticky=tk.W)
+        tk.Entry(button_frame, textvariable=self.application_limit).grid(row=0, column=1, pady=10)
+
+        tk.Button(button_frame, text="Check Queue", command=self.check_queue).grid(row=1, column=0, pady=10)
+        tk.Button(button_frame, text="Show Enrolled Students", command=self.show_students).grid(row=2, column=0,
+                                                                                                pady=10)
+        tk.Button(button_frame, text="View Log", command=self.view_log).grid(row=3, column=0, pady=10)
+        tk.Button(button_frame, text="Show Chart", command=self.show_dynamic_chart).grid(row=4, column=0, pady=10)
+        tk.Button(button_frame, text="Show Refusals", command=self.show_refusals).grid(row=5, column=0, pady=10)
+        tk.Button(button_frame, text="Show Teacher Utilization", command=self.show_teacher_utilization).grid(row=6,
                                                                                                              column=0,
                                                                                                              pady=10)
 
-        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=6, column=0, pady=10)
+        tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=7, column=0, pady=10)
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -401,10 +411,18 @@ class ArtSchoolApp:
         self.utilization_window.after(1000, self.update_teacher_utilization_window)
 
 def generate_applications(school, app_instance, students_pool):
+    application_count = 0
+
     while True:
         if not app_instance.paused:
-            student = random.choice(students_pool)
+            limit = app_instance.application_limit.get()
 
+            # Проверяем, достигнут ли лимит заявок
+            if limit > 0 and application_count >= limit:
+                sleep(1)  # Пауза перед проверкой
+                continue
+
+            student = random.choice(students_pool)
             course = random.choice(school.courses)
 
             already_enrolled = student in course.enrolled_students
@@ -413,9 +431,9 @@ def generate_applications(school, app_instance, students_pool):
             if not already_enrolled and not already_in_queue:
                 application = student.apply(course)
                 application.submit()
+                application_count += 1
 
         sleep(random.randint(2, 5))
-
 
 def manage_courses_and_teachers(school, app_instance):
     start_time = time.time()
