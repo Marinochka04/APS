@@ -279,12 +279,26 @@ class ArtSchoolApp:
         messagebox.showinfo("Queue Status", queue_status)
 
     def show_students(self):
+        if hasattr(self, 'students_window') and self.students_window.winfo_exists():
+            self.update_students_window()
+        else:
+            self.students_window = tk.Toplevel(self.root)
+            self.students_window.title("Enrolled Students")
+            self.students_window.geometry("600x200")
+
+            self.students_label = tk.Label(self.students_window, text="", justify=tk.LEFT)
+            self.students_label.pack(pady=10, padx=10)
+
+            self.update_students_window()
+
+    def update_students_window(self):
         course_status = ""
         for course in self.school.courses:
             enrolled_students = ", ".join(student.name for student in course.enrolled_students) or "Нет студентов"
             course_status += f"{course.title} ({len(course.enrolled_students)}/{course.capacity} студентов): {enrolled_students}\n"
 
-        messagebox.showinfo("Course Status", course_status)
+        self.students_label.config(text=course_status)
+        self.students_window.after(1000, self.update_students_window)
 
     def view_log(self):
         log_window = tk.Toplevel(self.root)
