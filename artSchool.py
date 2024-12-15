@@ -126,7 +126,7 @@ class Course:
 
 class ApplicationQueue:
     applications = []
-    MAX_QUEUE_SIZE = 5
+    MAX_QUEUE_SIZE = 2
 
     total_applications = 0
     total_refusals = 0
@@ -279,10 +279,11 @@ class ArtSchoolApp:
         messagebox.showinfo("Queue Status", queue_status)
 
     def show_students(self):
-        course_status = "\n".join(
-            f"{course.title}: {len(course.enrolled_students)}/{course.capacity} студентов"
-            for course in self.school.courses
-        )
+        course_status = ""
+        for course in self.school.courses:
+            enrolled_students = ", ".join(student.name for student in course.enrolled_students) or "Нет студентов"
+            course_status += f"{course.title} ({len(course.enrolled_students)}/{course.capacity} студентов): {enrolled_students}\n"
+
         messagebox.showinfo("Course Status", course_status)
 
     def view_log(self):
@@ -385,20 +386,22 @@ class ArtSchoolApp:
         self.utilization_label.config(text=utilization_table)
         self.utilization_window.after(1000, self.update_teacher_utilization_window)
 
-def generate_applications(school, app_instance):
-    student_id = 1
+def generate_applications(school, app_instance, students_pool):
     while True:
         if not app_instance.paused:
-            name = f"Student_{student_id}"
-            student = Student(name, student_id)
-            school.students.append(student)
+            student = random.choice(students_pool)
 
             course = random.choice(school.courses)
-            application = student.apply(course)
-            application.submit()
 
-            student_id += 1
+            already_enrolled = student in course.enrolled_students
+            already_in_queue = any(app.student == student and app.course == course for app in ApplicationQueue.applications)
+
+            if not already_enrolled and not already_in_queue:
+                application = student.apply(course)
+                application.submit()
+
         sleep(random.randint(2, 5))
+
 
 def manage_courses_and_teachers(school, app_instance):
     start_time = time.time()
@@ -430,7 +433,6 @@ def manage_courses_and_teachers(school, app_instance):
 
         sleep(5)
 
-
 def main():
     course1 = Course("Painting", capacity=2)
     course2 = Course("Design", capacity=3)
@@ -445,11 +447,13 @@ def main():
     school.add_teacher(teacher1)
     school.add_teacher(teacher2)
 
+    students_pool = [Student(f"Student_{i}", i) for i in range(1, 11)]
+
     root = tk.Tk()
     app = ArtSchoolApp(root, school)
 
     Thread(target=manage_courses_and_teachers, args=(school, app), daemon=True).start()
-    Thread(target=generate_applications, args=(school, app), daemon=True).start()
+    Thread(target=generate_applications, args=(school, app, students_pool), daemon=True).start()
 
     root.mainloop()
 
