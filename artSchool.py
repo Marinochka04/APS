@@ -410,6 +410,39 @@ class ArtSchoolApp:
         self.utilization_label.config(text=utilization_table)
         self.utilization_window.after(1000, self.update_teacher_utilization_window)
 
+    def show_summary_table(self):
+        summary_window = tk.Toplevel(self.root)
+        summary_window.title("Итоговая таблица")
+        summary_window.geometry("600x400")
+
+        total_applications, total_refusals, refusal_rate = ApplicationQueue.get_refusals()
+        num_sources = len(self.school.students)  # Число источников равно числу студентов
+
+        summary_label = tk.Label(summary_window, text="Общие данные", font=("Arial", 14, "bold"))
+        summary_label.pack(pady=10)
+        summary_text = f"""
+        Количество источников (студентов): {num_sources}
+        Общее количество заявок: {total_applications}
+        Размер буфера: {ApplicationQueue.MAX_QUEUE_SIZE}
+        Число отказов: {total_refusals}
+        Вероятность отказа: {refusal_rate:.2f}%
+        """
+        summary_data_label = tk.Label(summary_window, text=summary_text, justify=tk.LEFT)
+        summary_data_label.pack(pady=10)
+
+        teacher_utilization_label = tk.Label(summary_window, text="Занятость преподавателей",
+                                             font=("Arial", 14, "bold"))
+        teacher_utilization_label.pack(pady=10)
+
+        utilization_data = self.school.get_teacher_utilization()
+        utilization_text = "Преподаватель   | Занятость   | % Занятости\n" + "-" * 40 + "\n"
+        for teacher, (is_busy, utilization) in utilization_data.items():
+            status = "Занят" if is_busy else "Свободен"
+            utilization_text += f"{teacher.name:<15} | {status:<10} | {utilization:.2f}%\n"
+
+        teacher_data_label = tk.Label(summary_window, text=utilization_text, justify=tk.LEFT, font=("Courier", 10))
+        teacher_data_label.pack(pady=10)
+
 def generate_applications(school, app_instance, students_pool):
     application_count = 0
 
@@ -417,10 +450,10 @@ def generate_applications(school, app_instance, students_pool):
         if not app_instance.paused:
             limit = app_instance.application_limit.get()
 
-            # Проверяем, достигнут ли лимит заявок
             if limit > 0 and application_count >= limit:
-                sleep(1)  # Пауза перед проверкой
-                continue
+                app_instance.paused = True
+                app_instance.show_summary_table()
+                break
 
             student = random.choice(students_pool)
             course = random.choice(school.courses)
@@ -463,7 +496,7 @@ def manage_courses_and_teachers(school, app_instance):
 
             ApplicationQueue.process_queue()
 
-        sleep(5)
+        sleep(10)
 
 def main():
     course1 = Course("Painting", capacity=2)
