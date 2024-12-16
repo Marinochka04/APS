@@ -41,8 +41,10 @@ class Student:
     def __init__(self, name, student_id):
         self.name = name
         self.id = student_id
+        self.applications_sent = 0
 
     def apply(self, course):
+        self.applications_sent += 1
         application = Application(self, course)
         return application
 
@@ -430,6 +432,26 @@ class ArtSchoolApp:
         """
         summary_data_label = tk.Label(summary_window, text=summary_text, justify=tk.LEFT)
         summary_data_label.pack(pady=10)
+
+        show_student_summary_button = tk.Button(
+            summary_window, text="Показать таблицу заявок студентов", command=self.show_student_summary_table
+        )
+        show_student_summary_button.pack(pady=10)
+
+    def show_student_summary_table(self):
+        student_summary_window = tk.Toplevel(self.root)
+        student_summary_window.title("Таблица заявок студентов")
+        student_summary_window.geometry("400x300")
+
+        student_summary = "Студент           | Количество заявок\n" + "-" * 35 + "\n"
+        for student in self.students_pool:
+            student_summary += f"{student.name:<17} | {student.applications_sent}\n"
+
+        student_summary_label = tk.Label(
+            student_summary_window, text=student_summary, justify=tk.LEFT, font=("Courier", 10)
+        )
+        student_summary_label.pack(pady=10)
+
 
 def generate_applications(school, app_instance, students_pool):
     application_count = 0
