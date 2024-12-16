@@ -246,9 +246,10 @@ class Teacher:
 class ArtSchoolApp:
     paused = False
 
-    def __init__(self, root, school):
+    def __init__(self, root, school, students_pool):
         self.root = root
         self.school = school
+        self.students_pool = students_pool
         self.application_limit = tk.IntVar(value=0)
 
         self.root.title("Art School Enrollment System")
@@ -416,12 +417,12 @@ class ArtSchoolApp:
         summary_window.geometry("600x400")
 
         total_applications, total_refusals, refusal_rate = ApplicationQueue.get_refusals()
-        num_sources = len(self.school.students)
+        total_students = len(self.students_pool)
 
         summary_label = tk.Label(summary_window, text="Общие данные", font=("Arial", 14, "bold"))
         summary_label.pack(pady=10)
         summary_text = f"""
-        Количество источников (студентов): {num_sources}
+        Количество источников (студентов): {total_students}
         Общее количество заявок: {total_applications}
         Размер буфера: {ApplicationQueue.MAX_QUEUE_SIZE}
         Число отказов: {total_refusals}
@@ -429,19 +430,6 @@ class ArtSchoolApp:
         """
         summary_data_label = tk.Label(summary_window, text=summary_text, justify=tk.LEFT)
         summary_data_label.pack(pady=10)
-
-        teacher_utilization_label = tk.Label(summary_window, text="Занятость преподавателей",
-                                             font=("Arial", 14, "bold"))
-        teacher_utilization_label.pack(pady=10)
-
-        utilization_data = self.school.get_teacher_utilization()
-        utilization_text = "Преподаватель   | Занятость   | % Занятости\n" + "-" * 40 + "\n"
-        for teacher, (is_busy, utilization) in utilization_data.items():
-            status = "Занят" if is_busy else "Свободен"
-            utilization_text += f"{teacher.name:<15} | {status:<10} | {utilization:.2f}%\n"
-
-        teacher_data_label = tk.Label(summary_window, text=utilization_text, justify=tk.LEFT, font=("Courier", 10))
-        teacher_data_label.pack(pady=10)
 
 def generate_applications(school, app_instance, students_pool):
     application_count = 0
@@ -515,7 +503,7 @@ def main():
     students_pool = [Student(f"Student_{i}", i) for i in range(1, 11)]
 
     root = tk.Tk()
-    app = ArtSchoolApp(root, school)
+    app = ArtSchoolApp(root, school, students_pool)
 
     Thread(target=manage_courses_and_teachers, args=(school, app), daemon=True).start()
     Thread(target=generate_applications, args=(school, app, students_pool), daemon=True).start()
