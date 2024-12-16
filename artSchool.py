@@ -434,9 +434,14 @@ class ArtSchoolApp:
         summary_data_label.pack(pady=10)
 
         show_student_summary_button = tk.Button(
-            summary_window, text="Показать таблицу заявок студентов", command=self.show_student_summary_table
+            summary_window, text="Показать таблицу заявок студентов (источников)", command=self.show_student_summary_table
         )
         show_student_summary_button.pack(pady=10)
+
+        show_teacher_summary_button = tk.Button(
+            summary_window, text="Показать таблицу занятости преподавателей (приборов)", command=self.show_teacher_summary_table
+        )
+        show_teacher_summary_button.pack(pady=10)
 
     def show_student_summary_table(self):
         student_summary_window = tk.Toplevel(self.root)
@@ -452,6 +457,24 @@ class ArtSchoolApp:
         )
         student_summary_label.pack(pady=10)
 
+    def show_teacher_summary_table(self):
+        teacher_summary_window = tk.Toplevel(self.root)
+        teacher_summary_window.title("Загрузка преподавателей")
+        teacher_summary_window.geometry("500x300")
+
+        teacher_summary = "Преподаватель    | Статус      | % Занятости\n" + "-" * 40 + "\n"
+        total_courses = len(self.school.courses)
+
+        for teacher in self.school.teachers:
+            busy_courses = sum(1 for course in self.school.courses if course.teacher == teacher)
+            utilization = (busy_courses / total_courses * 100) if total_courses > 0 else 0
+            status = "Занят" if busy_courses > 0 else "Свободен"
+            teacher_summary += f"{teacher.name:<16} | {status:<10} | {utilization:.2f}%\n"
+
+        teacher_summary_label = tk.Label(
+            teacher_summary_window, text=teacher_summary, justify=tk.LEFT, font=("Courier", 10)
+        )
+        teacher_summary_label.pack(pady=10)
 
 def generate_applications(school, app_instance, students_pool):
     application_count = 0
