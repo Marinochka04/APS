@@ -467,7 +467,7 @@ class ArtSchoolApp:
     def show_student_summary_table(self):
         student_summary_window = tk.Toplevel(self.root)
         student_summary_window.title("Таблица заявок студентов")
-        student_summary_window.geometry("500x400")
+        student_summary_window.geometry("600x400")
 
         student_summary = "Студент           | Кол-во заявок | Кол-во отказов | Вероятность отказа (%)\n"
         student_summary += "-" * 65 + "\n"
