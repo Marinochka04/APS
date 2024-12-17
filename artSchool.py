@@ -267,9 +267,6 @@ class Teacher:
     def get_usage_ratio(self, total_assignments):
         return self.assignment_count / total_assignments if total_assignments > 0 else 0.0
 
-def teach(self, course):
-        print(f"{self.name} is teaching {course.title}")
-
 class ArtSchoolApp:
     paused = False
 
