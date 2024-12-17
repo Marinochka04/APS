@@ -70,7 +70,6 @@ class Application:
     def cancel(self):
         self.status = "cancelled"
 
-
 class Course:
     def __init__(self, title, capacity, school=None):
         self.title = title
@@ -195,14 +194,20 @@ class School:
         self.students = []
         self.teachers = []
         self.teacher_index = 0
+        self.total_assignments = 0
 
     def add_teacher(self, teacher):
+        teacher.assignment_count = 0
         self.teachers.append(teacher)
 
     def assign_next_teacher(self, course):
         if self.teachers:
             teacher = self.teachers[self.teacher_index]
             course.assign_teacher(teacher)
+
+            teacher.assignment_count += 1
+            self.total_assignments += 1
+
             self.teacher_index = (self.teacher_index + 1) % len(self.teachers)
             ActionLogger.add_entry(
                 source="School",
@@ -237,12 +242,32 @@ class School:
             utilization_data[teacher] = (is_busy, utilization)
         return utilization_data
 
+    def get_teacher_utilization_ratios(self):
+        utilization_ratios = {}
+        for teacher in self.teachers:
+            ratio = teacher.assignment_count / self.total_assignments if self.total_assignments > 0 else 0.0
+            utilization_ratios[teacher.name] = ratio
+        return utilization_ratios
+
+    def get_system_utilization(self):
+        total_courses = len(self.courses)
+        busy_courses = sum(1 for course in self.courses if course.teacher is not None)
+        utilization = (busy_courses / total_courses * 100) if total_courses > 0 else 0
+        return utilization
+
 class Teacher:
     def __init__(self, name, subject):
         self.name = name
         self.subject = subject
+        self.assignment_count = 0
 
-    def teach(self, course):
+    def increment_assignment(self):
+        self.assignment_count += 1
+
+    def get_usage_ratio(self, total_assignments):
+        return self.assignment_count / total_assignments if total_assignments > 0 else 0.0
+
+def teach(self, course):
         print(f"{self.name} is teaching {course.title}")
 
 class ArtSchoolApp:
@@ -459,17 +484,15 @@ class ArtSchoolApp:
 
     def show_teacher_summary_table(self):
         teacher_summary_window = tk.Toplevel(self.root)
-        teacher_summary_window.title("Загрузка преподавателей")
-        teacher_summary_window.geometry("500x300")
+        teacher_summary_window.title("Коэффициент использования преподавателей")
+        teacher_summary_window.geometry("500x400")
 
-        teacher_summary = "Преподаватель    | Статус      | % Занятости\n" + "-" * 40 + "\n"
-        total_courses = len(self.school.courses)
+        teacher_utilization_ratios = self.school.get_teacher_utilization_ratios()
 
-        for teacher in self.school.teachers:
-            busy_courses = sum(1 for course in self.school.courses if course.teacher == teacher)
-            utilization = (busy_courses / total_courses * 100) if total_courses > 0 else 0
-            status = "Занят" if busy_courses > 0 else "Свободен"
-            teacher_summary += f"{teacher.name:<16} | {status:<10} | {utilization:.2f}%\n"
+        teacher_summary = "Преподаватель    | Коэффициент\n" + "-" * 40 + "\n"
+
+        for teacher_name, ratio in teacher_utilization_ratios.items():
+            teacher_summary += f"{teacher_name:<16} | {ratio:.4f}\n"
 
         teacher_summary_label = tk.Label(
             teacher_summary_window, text=teacher_summary, justify=tk.LEFT, font=("Courier", 10)
@@ -539,11 +562,13 @@ def main():
 
     teacher1 = Teacher("Alice", "Painting")
     teacher2 = Teacher("Bob", "Design")
+    teacher3 = Teacher("Cony", "Art")
 
     school = School("Art School")
     school.courses = [course1, course2, course3, course4]
     school.add_teacher(teacher1)
     school.add_teacher(teacher2)
+    school.add_teacher(teacher3)
 
     students_pool = [Student(f"Student_{i}", i) for i in range(1, 11)]
 
