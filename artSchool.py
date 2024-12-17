@@ -42,11 +42,15 @@ class Student:
         self.name = name
         self.id = student_id
         self.applications_sent = 0
+        self.refusals = 0
 
     def apply(self, course):
         self.applications_sent += 1
         application = Application(self, course)
         return application
+
+    def get_refusal_probability(self):
+        return (self.refusals / self.applications_sent * 100) if self.applications_sent > 0 else 0.0
 
 class Application:
     application_counter = 1
@@ -153,6 +157,7 @@ class ApplicationQueue:
     def remove_lowest_priority(cls):
         if cls.applications:
             application_to_remove = max(cls.applications, key=lambda app: app.student.id)
+            application_to_remove.student.refusals += 1
 
             cls.applications.remove(application_to_remove)
             cls.total_refusals += 1
@@ -276,7 +281,7 @@ class ArtSchoolApp:
         button_frame = tk.Frame(root)
         button_frame.pack(pady=20)
 
-        tk.Label(button_frame, text="Количество заявок:").grid(row=0, column=0, pady=10, sticky=tk.W)
+        tk.Label(button_frame, text="Number of applications:").grid(row=0, column=0, pady=10, sticky=tk.W)
         tk.Entry(button_frame, textvariable=self.application_limit).grid(row=0, column=1, pady=10)
 
         tk.Button(button_frame, text="Check Queue", command=self.check_queue).grid(row=1, column=0, pady=10)
@@ -462,11 +467,14 @@ class ArtSchoolApp:
     def show_student_summary_table(self):
         student_summary_window = tk.Toplevel(self.root)
         student_summary_window.title("Таблица заявок студентов")
-        student_summary_window.geometry("400x300")
+        student_summary_window.geometry("500x400")
 
-        student_summary = "Студент           | Количество заявок\n" + "-" * 35 + "\n"
+        student_summary = "Студент           | Кол-во заявок | Кол-во отказов | Вероятность отказа (%)\n"
+        student_summary += "-" * 65 + "\n"
+
         for student in self.students_pool:
-            student_summary += f"{student.name:<17} | {student.applications_sent}\n"
+            refusal_rate = student.get_refusal_probability()
+            student_summary += f"{student.name:<17} | {student.applications_sent:^13} | {student.refusals:^14} | {refusal_rate:>8.2f}%\n"
 
         student_summary_label = tk.Label(
             student_summary_window, text=student_summary, justify=tk.LEFT, font=("Courier", 10)
