@@ -214,12 +214,6 @@ class School:
                 action="Преподаватель назначен",
                 details=f"Преподаватель {teacher.name} назначен на курс {course.title}"
             )
-        else:
-            ActionLogger.add_entry(
-                source="School",
-                action="Ошибка назначения",
-                details="Нет доступных преподавателей для назначения"
-            )
 
     @staticmethod
     def select_application():
