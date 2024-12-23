@@ -6,6 +6,9 @@ import random
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import time
+from threading import Lock
+
+application_lock = Lock()
 
 class ActionLogger:
     log = []
@@ -101,11 +104,16 @@ class Application:
         )
 
     def complete_service_process(self):
-        self.service_completed_time = time.time()
+        if self.service_start_time is None:
+            raise ValueError(f"Время начала обслуживания заявки для {self.id} не установлено.")
+
+        service_time = time.time() - self.service_start_time
+        details = f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {service_time:.2f} секунд"
+
         ActionLogger.add_entry(
             source="Application",
             action="Завершение обслуживания заявки",
-            details=f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {self.waiting_completed_time:.2f} секунд"
+            details=details
         )
 
     def cancel(self):
@@ -146,6 +154,7 @@ class Course:
         if self.check_availability():
             if self.enroll(application.student):
                 application.status = "accepted"
+                ApplicationQueue.processed_applications.append(application)
                 if not self.teacher and self.school:
                     self.school.assign_next_teacher(self)
         else:
@@ -162,14 +171,20 @@ class Course:
             )
 
             related_application = next(
-                (app for app in ApplicationQueue.applications if app.student == student and app.course == self),
+                (
+                    app
+                    for app in ApplicationQueue.applications + ApplicationQueue.processed_applications
+                    if app.student == student and app.course.title == self.title
+                ),
                 None
             )
             if related_application:
                 related_application.complete_service_process()
-                print(f"Лог заявки: {ActionLogger.log[-1]}")  # Проверка последнего лога
+                print(f"Лог заявки: {ActionLogger.log[-1]}")
             else:
-                print(f"Связанная заявка для студента {student.name} не найдена.")
+                print(f"Связанная заявка для студента {student.name} не найдена. Проверьте:")
+                print(f"Заявки в очереди: {[app.student.name for app in ApplicationQueue.applications]}")
+                print(f"Обработанные заявки: {[app.student.name for app in ApplicationQueue.processed_applications]}")
 
     def remove_teacher(self, school):
         if self.teacher:
@@ -183,6 +198,7 @@ class Course:
             school.assign_next_teacher(self)
 class ApplicationQueue:
     applications = []
+    processed_applications = []
     MAX_QUEUE_SIZE = 5
 
     total_applications = 0
@@ -241,29 +257,30 @@ class ApplicationQueue:
                     action="Заявка обработана",
                     details=f"Заявка {application.id}({application.student.name}) из очереди записана на курс {application.course.title}"
                 )
+
                 cls.applications.remove(application)
 
     @staticmethod
     def calculate_statistics():
         total_waiting_time = 0
-        total_processing_time = 0
+        total_service_time = 0
         total_system_time = 0
         processed_applications = 0
 
         for application in ApplicationQueue.applications:
             if application.waiting_completed_time:
                 waiting_time = application.waiting_start_time - application.created_time
-                processing_time = application.waiting_completed_time - application.waiting_start_time
+                service_time = application.waiting_completed_time - application.waiting_start_time
                 system_time = application.waiting_completed_time - application.created_time
 
                 total_waiting_time += waiting_time
-                total_processing_time += processing_time
+                total_service_time += service_time
                 total_system_time += system_time
                 processed_applications += 1
 
         if processed_applications > 0:
             average_waiting_time = total_waiting_time / processed_applications
-            average_processing_time = total_processing_time / processed_applications
+            average_processing_time = total_service_time / processed_applications
             average_system_time = total_system_time / processed_applications
         else:
             average_waiting_time = average_processing_time = average_system_time = 0
@@ -607,14 +624,15 @@ def generate_applications(school, app_instance, students_pool):
             already_in_queue = any(app.student == student and app.course == course for app in ApplicationQueue.applications)
 
             if not already_enrolled and not already_in_queue:
-                application = student.apply(course)
-                application.submit()
-                application.start_waiting_process()
-                application_count += 1
+                with application_lock:
+                    application = student.apply(course)
+                    application.submit()
+                    application.start_waiting_process()
+                    application_count += 1
 
-                if course.enroll(student, application):
-                    application.complete_waiting_process()
-                    application.start_service_process()
+                    if course.enroll(student, application):
+                        application.complete_waiting_process()
+                        application.start_service_process()
 
         sleep(random.randint(2, 5))
 
@@ -641,8 +659,9 @@ def manage_courses_and_teachers(school, app_instance):
                         random.choice(courses_with_teachers).remove_teacher(school)
                         last_teacher_removal_time = current_time
 
-            course_to_remove_from = random.choice(school.courses)
-            course_to_remove_from.remove_random_student()
+            with application_lock:
+                course_to_remove_from = random.choice(school.courses)
+                course_to_remove_from.remove_random_student()
 
             ApplicationQueue.process_queue()
 
