@@ -203,7 +203,7 @@ class Course:
 class ApplicationQueue:
     applications = []
     processed_applications = []
-    MAX_QUEUE_SIZE = 10
+    MAX_QUEUE_SIZE = 3
 
     total_applications = 0
     total_refusals = 0
@@ -416,6 +416,16 @@ class School:
             teacher_load[teacher.name] = load * 100  # Выражаем в процентах
 
         return teacher_load
+
+    def show_teacher_work_time(self):
+        teacher_summary = "Преподаватель | Курс       | Время работы (сек)\n" + "-" * 50 + "\n"
+
+        for teacher in self.teachers:
+            for course in self.courses:
+                work_time = teacher.get_work_time_for_course(course)
+                teacher_summary += f"{teacher.name:<14} | {course.title:<10} | {work_time:.2f}\n"
+
+        return teacher_summary
 
 class Teacher:
     def __init__(self, name, subject, assignment_time=None):
@@ -671,25 +681,13 @@ class ArtSchoolApp:
 
     def show_teacher_summary_table(self):
         teacher_summary_window = tk.Toplevel(self.root)
-        teacher_summary_window.title("Коэффициент использования преподавателей")
+        teacher_summary_window.title("Время работы преподавателей на курсах")
         teacher_summary_window.geometry("600x400")
 
-        teacher_utilization_ratios = self.school.get_teacher_utilization_ratios()
-
-        teacher_load = self.school.calculate_teacher_load()
-
-        teacher_summary = "Преподаватель    | Коэффициент    | Загрузка (%)\n" + "-" * 50 + "\n"
-
-        for teacher_name in teacher_utilization_ratios:
-            ratio = teacher_utilization_ratios.get(teacher_name, 0)
-            load = teacher_load.get(teacher_name, 0)
-            teacher_summary += f"{teacher_name:<16} | {ratio:.4f}        | {load:.2f}%\n"
-
-        system_utilization = self.school.get_system_utilization()
-        system_utilization_text = f"\nЗагрузка системы: {system_utilization:.2f}%"
+        teacher_summary = self.school.show_teacher_work_time()
 
         teacher_summary_label = tk.Label(
-            teacher_summary_window, text=teacher_summary + system_utilization_text, justify=tk.LEFT,
+            teacher_summary_window, text=teacher_summary, justify=tk.LEFT,
             font=("Courier", 10)
         )
         teacher_summary_label.pack(pady=10)
@@ -757,6 +755,7 @@ def manage_courses_and_teachers(school, app_instance):
         if not app_instance.paused:
             for course in school.courses:
                 if not course.teacher:
+                    course.teacher.end_work_on_course(course) #
                     school.assign_next_teacher(course)
 
             current_time = time.time()
@@ -775,7 +774,7 @@ def manage_courses_and_teachers(school, app_instance):
 
             ApplicationQueue.process_queue()
 
-        sleep(7)
+        sleep(10)
 
 def main():
     course1 = Course("Painting", capacity=2)
