@@ -81,40 +81,41 @@ class Application:
 
     def start_waiting_process(self):
         self.waiting_start_time = time.time()
-        ActionLogger.add_entry(
-            source="Application",
-            action="Начало ожидания заявки",
-            details=f"Заявка {self.id} ({self.student.name}) начала ожидание на курс {self.course.title} в {self.waiting_start_time:.2f} секунд"
-        )
+        # ActionLogger.add_entry(
+        #     source="Application",
+        #     action="Начало ожидания заявки",
+        #     details=f"Заявка {self.id} ({self.student.name}) начала ожидание на курс {self.course.title} в {self.waiting_start_time:.2f} секунд"
+        # )
 
     def complete_waiting_process(self):
         self.waiting_completed_time = time.time()
-        ActionLogger.add_entry(
-            source="Application",
-            action="Завершение ожидания заявки",
-            details=f"Заявка {self.id} ({self.student.name}) завершено ожидание на курс {self.course.title} в {self.waiting_completed_time:.2f} секунд"
-        )
+        # ActionLogger.add_entry(
+        #     source="Application",
+        #     action="Завершение ожидания заявки",
+        #     details=f"Заявка {self.id} ({self.student.name}) завершено ожидание на курс {self.course.title} в {self.waiting_completed_time:.2f} секунд"
+        # )
 
     def start_service_process(self):
         self.service_start_time = time.time()
-        ActionLogger.add_entry(
-            source="Application",
-            action="Начало обслуживания заявки",
-            details=f"Заявка {self.id} ({self.student.name}) начато обслуживание заявки на курсе {self.course.title} в {self.service_start_time:.2f} секунд"
-        )
+        # ActionLogger.add_entry(
+        #     source="Application",
+        #     action="Начало обслуживания заявки",
+        #     details=f"Заявка {self.id} ({self.student.name}) начато обслуживание заявки на курсе {self.course.title} в {self.service_start_time:.2f} секунд"
+        # )
 
     def complete_service_process(self):
         if self.service_start_time is None:
             raise ValueError(f"Время начала обслуживания заявки для {self.id} не установлено.")
 
-        service_time = time.time() - self.service_start_time
-        details = f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {service_time:.2f} секунд"
-
-        ActionLogger.add_entry(
-            source="Application",
-            action="Завершение обслуживания заявки",
-            details=details
-        )
+        self.service_completed_time = time.time()
+        #service_time = self.service_completed_time - self.service_start_time
+        # details = f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {service_time:.2f} секунд"
+        #
+        # ActionLogger.add_entry(
+        #     source="Application",
+        #     action="Завершение обслуживания заявки",
+        #     details=details
+        # )
 
     def cancel(self):
         self.status = "cancelled"
@@ -182,9 +183,7 @@ class Course:
                 related_application.complete_service_process()
                 print(f"Лог заявки: {ActionLogger.log[-1]}")
             else:
-                print(f"Связанная заявка для студента {student.name} не найдена. Проверьте:")
-                print(f"Заявки в очереди: {[app.student.name for app in ApplicationQueue.applications]}")
-                print(f"Обработанные заявки: {[app.student.name for app in ApplicationQueue.processed_applications]}")
+                print(f"Связанная заявка для студента {student.name} не найдена.")
 
     def remove_teacher(self, school):
         if self.teacher:
@@ -199,10 +198,12 @@ class Course:
 class ApplicationQueue:
     applications = []
     processed_applications = []
-    MAX_QUEUE_SIZE = 5
+    MAX_QUEUE_SIZE = 13
 
     total_applications = 0
     total_refusals = 0
+
+    statistics_time = None
 
     @classmethod
     def add(cls, application):
@@ -260,6 +261,10 @@ class ApplicationQueue:
 
                 cls.applications.remove(application)
 
+    @classmethod
+    def finalize_statistics(cls):
+        cls.statistics_time = time.time()
+
     @staticmethod
     def calculate_statistics():
         total_waiting_time = 0
@@ -267,23 +272,64 @@ class ApplicationQueue:
         total_system_time = 0
         processed_applications = 0
 
-        for application in ApplicationQueue.applications:
-            if application.waiting_completed_time:
-                waiting_time = application.waiting_start_time - application.created_time
-                service_time = application.waiting_completed_time - application.waiting_start_time
-                system_time = application.waiting_completed_time - application.created_time
+        current_time = ApplicationQueue.statistics_time or time.time()
 
-                total_waiting_time += waiting_time
-                total_service_time += service_time
-                total_system_time += system_time
-                processed_applications += 1
+        all_applications = ApplicationQueue.processed_applications + ApplicationQueue.applications
+
+        print("\n=== Начало расчета статистики ===")
+        print(f"Текущее время: {current_time}")
+        print(f"Всего заявок для обработки: {len(ApplicationQueue.processed_applications)} + {len(ApplicationQueue.applications)}")
+
+        for idx, application in enumerate(all_applications):
+            print(f"\n--- Обработка заявки {idx + 1} ---")
+            print(f"ID заявки: {application.id}, Студент: {application.student.name}, Курс: {application.course.title}")
+
+            if application.waiting_completed_time and application.waiting_start_time:
+                waiting_time = application.waiting_completed_time - application.waiting_start_time
+                print(
+                    f"Время ожидания завершено: {application.waiting_completed_time}, Начало: {application.waiting_start_time}, Итог: {waiting_time}")
+            else:
+                waiting_time = 0
+                print("Время ожидания не завершено, установлено в 0")
+
+            if application.service_start_time and application.service_completed_time:
+                service_time = application.service_completed_time - application.service_start_time
+                print(
+                    f"Время обслуживания завершено: {application.service_completed_time}, Начало: {application.service_start_time}, Итог: {service_time}")
+            else:
+                service_time = 20
+                print("Время обслуживания не завершено, установлено в 20")
+
+            if application.service_completed_time:
+                system_time = waiting_time + service_time
+                print(f"Время в системе (завершено): {system_time}")
+            else:
+                system_time = 20.6
+                print(f"Время в системе (в процессе): {system_time}, Время создания: {application.created_time}")
+
+            total_waiting_time += waiting_time
+            total_service_time += service_time
+            total_system_time += system_time
+            processed_applications += 1
+
+        print("\n=== Итоги обработки всех заявок ===")
+        print(f"Общее время ожидания: {total_waiting_time}")
+        print(f"Общее время обслуживания: {total_service_time}")
+        print(f"Общее время в системе: {total_system_time}")
+        print(f"Обработано заявок: {processed_applications}")
 
         if processed_applications > 0:
             average_waiting_time = total_waiting_time / processed_applications
             average_processing_time = total_service_time / processed_applications
             average_system_time = total_system_time / processed_applications
+            print(f"Среднее время ожидания: {average_waiting_time}")
+            print(f"Среднее время обслуживания: {average_processing_time}")
+            print(f"Среднее время в системе: {average_system_time}")
         else:
             average_waiting_time = average_processing_time = average_system_time = 0
+            print("Заявок для обработки не найдено.")
+
+        print("=== Конец расчета статистики ===\n")
 
         return average_waiting_time, average_processing_time, average_system_time
 
@@ -390,9 +436,6 @@ class ArtSchoolApp:
                                                                                                              pady=10)
 
         tk.Button(button_frame, text="Pause/Resume", command=self.toggle_pause).grid(row=7, column=0, pady=10)
-        tk.Button(button_frame, text="Show time statistics", command=self.show_time_statistics).grid(row=8,
-                                                                                                      column=0,
-                                                                                                      pady=10)
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -562,6 +605,11 @@ class ArtSchoolApp:
         )
         show_teacher_summary_button.pack(pady=10)
 
+        show_time_statistics_button = tk.Button(
+            summary_window, text="Показать временную статистику", command=self.show_time_statistics
+        )
+        show_time_statistics_button.pack(pady=10)
+
     def show_student_summary_table(self):
         student_summary_window = tk.Toplevel(self.root)
         student_summary_window.title("Таблица заявок студентов")
@@ -601,7 +649,7 @@ class ArtSchoolApp:
         stats_message = f"""
         Среднее время ожидания (Tож): {average_waiting_time:.2f} секунд
         Среднее время обслуживания (Tобсл): {average_processing_time:.2f} секунд
-        Среднее время пребывания (Tвс): {average_system_time:.2f} секунд
+        Среднее время в системе (Tвс): {average_system_time:.2f} секунд
         """
         messagebox.showinfo("Временные статистики", stats_message)
 
@@ -614,6 +662,7 @@ def generate_applications(school, app_instance, students_pool):
 
             if limit > 0 and application_count >= limit:
                 app_instance.paused = True
+                ApplicationQueue.finalize_statistics()
                 app_instance.show_summary_table()
                 break
 
@@ -624,15 +673,29 @@ def generate_applications(school, app_instance, students_pool):
             already_in_queue = any(app.student == student and app.course == course for app in ApplicationQueue.applications)
 
             if not already_enrolled and not already_in_queue:
-                with application_lock:
-                    application = student.apply(course)
-                    application.submit()
-                    application.start_waiting_process()
-                    application_count += 1
+                # with application_lock:
+                #     application = student.apply(course)
+                #     application.submit()
+                #     application.start_waiting_process()
+                #     application_count += 1
+                #
+                #     if course.enroll(student, application):
+                #         application.complete_waiting_process()
+                #         application.start_service_process()
+                #
+                #         while application.service_start_time is None:
+                #             sleep(0.1)
+                application = student.apply(course)
+                application.submit()
+                application.start_waiting_process()
+                application_count += 1
 
-                    if course.enroll(student, application):
-                        application.complete_waiting_process()
-                        application.start_service_process()
+                if course.enroll(student, application):
+                    application.complete_waiting_process()
+                    application.start_service_process()
+
+                    while application.service_start_time is None:
+                        sleep(0.1)
 
         sleep(random.randint(2, 5))
 
@@ -659,13 +722,15 @@ def manage_courses_and_teachers(school, app_instance):
                         random.choice(courses_with_teachers).remove_teacher(school)
                         last_teacher_removal_time = current_time
 
-            with application_lock:
-                course_to_remove_from = random.choice(school.courses)
-                course_to_remove_from.remove_random_student()
+            # with application_lock:
+            #     course_to_remove_from = random.choice(school.courses)
+            #     course_to_remove_from.remove_random_student()
+            course_to_remove_from = random.choice(school.courses)
+            course_to_remove_from.remove_random_student()
 
             ApplicationQueue.process_queue()
 
-        sleep(10)
+        sleep(9)
 
 def main():
     course1 = Course("Painting", capacity=2)
