@@ -203,7 +203,7 @@ class Course:
 class ApplicationQueue:
     applications = []
     processed_applications = []
-    MAX_QUEUE_SIZE = 3
+    MAX_QUEUE_SIZE = 10
 
     total_applications = 0
     total_refusals = 0
@@ -345,12 +345,10 @@ class School:
         self.teachers = []
         self.teacher_index = 0
         self.total_assignments = 0
-        self.start_time = time.time()
-        self.end_time = 0
+        self.start_time = time.time()  # Время начала работы школы
 
     def add_teacher(self, teacher):
         teacher.assignment_count = 0
-        teacher.all_work_time_start = time.time()
         self.teachers.append(teacher)
 
     def assign_next_teacher(self, course):
@@ -405,11 +403,16 @@ class School:
     def calculate_teacher_load(self):
         teacher_load = {}
         for teacher in self.teachers:
-            total_time = teacher.calculate_unique_work_time()
+            total_time = 0
+            for course in self.courses:
+                if course.teacher == teacher:
+                    # Рассчитываем время работы на курсе
+                    if course.teacher_start_time:
+                        time_on_course = time.time() - course.teacher_start_time
+                        total_time += time_on_course
 
-            # Загрузка = время работы / общее время с момента создания преподавателя
-            existence_time = time.time() - self.start_time  # Время существования школы
-            load = total_time / existence_time if existence_time > 0 else 0
+            # Загрузка = время работы / общее время с момента назначения
+            load = total_time / (time.time() - teacher.assignment_time) if total_time > 0 else 0
             teacher_load[teacher.name] = load * 100  # Выражаем в процентах
 
         return teacher_load
@@ -421,12 +424,9 @@ class Teacher:
         self.assignment_count = 0
         self.assignment_time = assignment_time or time.time()
         self.total_work_time = 0
-        self.all_work_time_start = 0
-        self.all_work_time_end = 0
         self.assignment_start_time = None
         self.assignment_end_time = None
         self.course_times = {}
-        self.work_intervals = []
 
     def start_work_on_course(self):
         self.assignment_start_time = time.time()
@@ -434,8 +434,9 @@ class Teacher:
     def end_work_on_course(self):
         if self.assignment_start_time:
             self.assignment_end_time = time.time()
-            self.work_intervals.append((self.assignment_start_time, self.assignment_end_time))
-            self.assignment_start_time = None
+            work_duration = self.assignment_end_time - self.assignment_start_time
+            self.total_work_time += work_duration
+            self.assignment_start_time = None ###########################
 
     def get_work_time_for_course(self, course):
         return self.course_times.get(course.title, 0)
@@ -447,19 +448,6 @@ class Teacher:
 
     def get_total_time_spent(self):
         return sum(self.course_times.values())
-
-    def calculate_unique_work_time(self):
-        # Объединение пересекающихся интервалов
-        merged_intervals = []
-        for start, end in sorted(self.work_intervals):
-            if not merged_intervals or merged_intervals[-1][1] < start:
-                merged_intervals.append([start, end])
-            else:
-                merged_intervals[-1][1] = max(merged_intervals[-1][1], end)
-
-        # Подсчет общего времени
-        total_time = sum(end - start for start, end in merged_intervals)
-        return total_time
 
 class ArtSchoolApp:
     paused = False
@@ -758,7 +746,6 @@ def generate_applications(school, app_instance, students_pool):
                         sleep(0.1)
 
         sleep(random.randint(2, 5))
-        school.end_time = time.time()
 
 def manage_courses_and_teachers(school, app_instance):
     start_time = time.time()
