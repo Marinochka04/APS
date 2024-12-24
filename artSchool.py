@@ -345,10 +345,12 @@ class School:
         self.teachers = []
         self.teacher_index = 0
         self.total_assignments = 0
-        self.start_time = time.time()  # Время начала работы школы
+        self.start_time = time.time()
+        self.end_time = 0
 
     def add_teacher(self, teacher):
         teacher.assignment_count = 0
+        teacher.all_work_time_start = time.time()
         self.teachers.append(teacher)
 
     def assign_next_teacher(self, course):
@@ -403,29 +405,14 @@ class School:
     def calculate_teacher_load(self):
         teacher_load = {}
         for teacher in self.teachers:
-            total_time = 0
-            for course in self.courses:
-                if course.teacher == teacher:
-                    # Рассчитываем время работы на курсе
-                    if course.teacher_start_time:
-                        time_on_course = time.time() - course.teacher_start_time
-                        total_time += time_on_course
+            total_time = teacher.calculate_unique_work_time()
 
-            # Загрузка = время работы / общее время с момента назначения
-            load = total_time / (time.time() - teacher.assignment_time) if total_time > 0 else 0
+            # Загрузка = время работы / общее время с момента создания преподавателя
+            existence_time = time.time() - self.start_time  # Время существования школы
+            load = total_time / existence_time if existence_time > 0 else 0
             teacher_load[teacher.name] = load * 100  # Выражаем в процентах
 
         return teacher_load
-
-    def show_teacher_work_time(self):
-        teacher_summary = "Преподаватель | Курс       | Время работы (сек)\n" + "-" * 50 + "\n"
-
-        for teacher in self.teachers:
-            for course in self.courses:
-                work_time = teacher.get_work_time_for_course(course)
-                teacher_summary += f"{teacher.name:<14} | {course.title:<10} | {work_time:.2f}\n"
-
-        return teacher_summary
 
 class Teacher:
     def __init__(self, name, subject, assignment_time=None):
@@ -434,9 +421,12 @@ class Teacher:
         self.assignment_count = 0
         self.assignment_time = assignment_time or time.time()
         self.total_work_time = 0
+        self.all_work_time_start = 0
+        self.all_work_time_end = 0
         self.assignment_start_time = None
         self.assignment_end_time = None
         self.course_times = {}
+        self.work_intervals = []
 
     def start_work_on_course(self):
         self.assignment_start_time = time.time()
@@ -444,9 +434,8 @@ class Teacher:
     def end_work_on_course(self):
         if self.assignment_start_time:
             self.assignment_end_time = time.time()
-            work_duration = self.assignment_end_time - self.assignment_start_time
-            self.total_work_time += work_duration
-            self.assignment_start_time = None ###########################
+            self.work_intervals.append((self.assignment_start_time, self.assignment_end_time))
+            self.assignment_start_time = None
 
     def get_work_time_for_course(self, course):
         return self.course_times.get(course.title, 0)
@@ -458,6 +447,19 @@ class Teacher:
 
     def get_total_time_spent(self):
         return sum(self.course_times.values())
+
+    def calculate_unique_work_time(self):
+        # Объединение пересекающихся интервалов
+        merged_intervals = []
+        for start, end in sorted(self.work_intervals):
+            if not merged_intervals or merged_intervals[-1][1] < start:
+                merged_intervals.append([start, end])
+            else:
+                merged_intervals[-1][1] = max(merged_intervals[-1][1], end)
+
+        # Подсчет общего времени
+        total_time = sum(end - start for start, end in merged_intervals)
+        return total_time
 
 class ArtSchoolApp:
     paused = False
@@ -681,13 +683,25 @@ class ArtSchoolApp:
 
     def show_teacher_summary_table(self):
         teacher_summary_window = tk.Toplevel(self.root)
-        teacher_summary_window.title("Время работы преподавателей на курсах")
+        teacher_summary_window.title("Коэффициент использования преподавателей")
         teacher_summary_window.geometry("600x400")
 
-        teacher_summary = self.school.show_teacher_work_time()
+        teacher_utilization_ratios = self.school.get_teacher_utilization_ratios()
+
+        teacher_load = self.school.calculate_teacher_load()
+
+        teacher_summary = "Преподаватель    | Коэффициент    | Загрузка (%)\n" + "-" * 50 + "\n"
+
+        for teacher_name in teacher_utilization_ratios:
+            ratio = teacher_utilization_ratios.get(teacher_name, 0)
+            load = teacher_load.get(teacher_name, 0)
+            teacher_summary += f"{teacher_name:<16} | {ratio:.4f}        | {load:.2f}%\n"
+
+        system_utilization = self.school.get_system_utilization()
+        system_utilization_text = f"\nЗагрузка системы: {system_utilization:.2f}%"
 
         teacher_summary_label = tk.Label(
-            teacher_summary_window, text=teacher_summary, justify=tk.LEFT,
+            teacher_summary_window, text=teacher_summary + system_utilization_text, justify=tk.LEFT,
             font=("Courier", 10)
         )
         teacher_summary_label.pack(pady=10)
@@ -744,6 +758,7 @@ def generate_applications(school, app_instance, students_pool):
                         sleep(0.1)
 
         sleep(random.randint(2, 5))
+        school.end_time = time.time()
 
 def manage_courses_and_teachers(school, app_instance):
     start_time = time.time()
@@ -755,7 +770,6 @@ def manage_courses_and_teachers(school, app_instance):
         if not app_instance.paused:
             for course in school.courses:
                 if not course.teacher:
-                    course.teacher.end_work_on_course(course) #
                     school.assign_next_teacher(course)
 
             current_time = time.time()
@@ -774,7 +788,7 @@ def manage_courses_and_teachers(school, app_instance):
 
             ApplicationQueue.process_queue()
 
-        sleep(10)
+        sleep(7)
 
 def main():
     course1 = Course("Painting", capacity=2)
