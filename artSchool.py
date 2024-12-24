@@ -132,6 +132,8 @@ class Course:
         return len(self.enrolled_students) < self.capacity
 
     def enroll(self, student, application=None):
+        if student in self.enrolled_students:
+            return False
         if self.check_availability():
             self.enrolled_students.append(student)
             ActionLogger.add_entry(
@@ -198,7 +200,7 @@ class Course:
 class ApplicationQueue:
     applications = []
     processed_applications = []
-    MAX_QUEUE_SIZE = 13
+    MAX_QUEUE_SIZE = 5
 
     total_applications = 0
     total_refusals = 0
@@ -265,6 +267,83 @@ class ApplicationQueue:
     def finalize_statistics(cls):
         cls.statistics_time = time.time()
 
+    # @staticmethod
+    # def calculate_statistics():
+    #     total_waiting_time = 0
+    #     total_service_time = 0
+    #     total_system_time = 0
+    #     processed_applications = 0
+    #
+    #     waiting_times = []
+    #     service_times = []
+    #
+    #     current_time = ApplicationQueue.statistics_time or time.time()
+    #
+    #     all_applications = ApplicationQueue.processed_applications + ApplicationQueue.applications
+    #
+    #     print("\n=== Начало расчета статистики ===")
+    #     print(f"Текущее время: {current_time}")
+    #     print(f"Всего заявок для обработки: {len(ApplicationQueue.processed_applications)} + {len(ApplicationQueue.applications)}")
+    #
+    #     for idx, application in enumerate(all_applications):
+    #         print(f"\n--- Обработка заявки {idx + 1} ---")
+    #         print(f"ID заявки: {application.id}, Студент: {application.student.name}, Курс: {application.course.title}")
+    #
+    #         if application.waiting_completed_time and application.waiting_start_time:
+    #             waiting_time = application.waiting_completed_time - application.waiting_start_time
+    #             print(
+    #                 f"Время ожидания завершено: {application.waiting_completed_time}, Начало: {application.waiting_start_time}, Итог: {waiting_time}")
+    #         else:
+    #             waiting_time = 0
+    #             print("Время ожидания не завершено, установлено в 0")
+    #
+    #         if application.service_start_time and application.service_completed_time:
+    #             service_time = application.service_completed_time - application.service_start_time
+    #             print(
+    #                 f"Время обслуживания завершено: {application.service_completed_time}, Начало: {application.service_start_time}, Итог: {service_time}")
+    #         else:
+    #             service_time = 20
+    #             print("Время обслуживания не завершено, установлено в 20")
+    #
+    #         if application.service_completed_time:
+    #             system_time = waiting_time + service_time
+    #             print(f"Время в системе (завершено): {system_time}")
+    #         else:
+    #             system_time = 20
+    #             print(f"Время в системе (в процессе): {system_time}, Время создания: {application.created_time}")
+    #
+    #         total_waiting_time += waiting_time
+    #         total_service_time += service_time
+    #         total_system_time += system_time
+    #         waiting_times.append(waiting_time)
+    #         service_times.append(service_time)
+    #         processed_applications += 1
+    #
+    #     print("\n=== Итоги обработки всех заявок ===")
+    #     print(f"Общее время ожидания: {total_waiting_time}")
+    #     print(f"Общее время обслуживания: {total_service_time}")
+    #     print(f"Общее время в системе: {total_system_time}")
+    #     print(f"Обработано заявок: {processed_applications}")
+    #
+    #     if processed_applications > 0:
+    #         average_waiting_time = total_waiting_time / processed_applications
+    #         average_processing_time = total_service_time / processed_applications
+    #         average_system_time = total_system_time / processed_applications
+    #         variance_waiting_time = sum(
+    #             (wt - average_waiting_time) ** 2 for wt in waiting_times) / processed_applications
+    #         variance_processing_time = sum(
+    #             (st - average_processing_time) ** 2 for st in service_times) / processed_applications
+    #         print(f"Среднее время ожидания: {average_waiting_time}")
+    #         print(f"Среднее время обслуживания: {average_processing_time}")
+    #         print(f"Среднее время в системе: {average_system_time}")
+    #     else:
+    #         average_waiting_time = average_processing_time = average_system_time = variance_waiting_time = variance_processing_time = 0
+    #         print("Заявок для обработки не найдено.")
+    #
+    #     print("=== Конец расчета статистики ===\n")
+    #
+    #     return average_waiting_time, average_processing_time, average_system_time, variance_waiting_time, variance_processing_time
+
     @staticmethod
     def calculate_statistics():
         total_waiting_time = 0
@@ -272,66 +351,40 @@ class ApplicationQueue:
         total_system_time = 0
         processed_applications = 0
 
-        current_time = ApplicationQueue.statistics_time or time.time()
+        waiting_times = []
+        service_times = []
 
+        current_time = ApplicationQueue.statistics_time or time.time()
         all_applications = ApplicationQueue.processed_applications + ApplicationQueue.applications
 
-        print("\n=== Начало расчета статистики ===")
-        print(f"Текущее время: {current_time}")
-        print(f"Всего заявок для обработки: {len(ApplicationQueue.processed_applications)} + {len(ApplicationQueue.applications)}")
-
-        for idx, application in enumerate(all_applications):
-            print(f"\n--- Обработка заявки {idx + 1} ---")
-            print(f"ID заявки: {application.id}, Студент: {application.student.name}, Курс: {application.course.title}")
-
+        for application in all_applications:
             if application.waiting_completed_time and application.waiting_start_time:
                 waiting_time = application.waiting_completed_time - application.waiting_start_time
-                print(
-                    f"Время ожидания завершено: {application.waiting_completed_time}, Начало: {application.waiting_start_time}, Итог: {waiting_time}")
             else:
                 waiting_time = 0
-                print("Время ожидания не завершено, установлено в 0")
 
             if application.service_start_time and application.service_completed_time:
                 service_time = application.service_completed_time - application.service_start_time
-                print(
-                    f"Время обслуживания завершено: {application.service_completed_time}, Начало: {application.service_start_time}, Итог: {service_time}")
             else:
-                service_time = 20
-                print("Время обслуживания не завершено, установлено в 20")
-
-            if application.service_completed_time:
-                system_time = waiting_time + service_time
-                print(f"Время в системе (завершено): {system_time}")
-            else:
-                system_time = 20.6
-                print(f"Время в системе (в процессе): {system_time}, Время создания: {application.created_time}")
+                service_time = 20  # Default value for incomplete service times
 
             total_waiting_time += waiting_time
             total_service_time += service_time
-            total_system_time += system_time
+            waiting_times.append(waiting_time)
+            service_times.append(service_time)
             processed_applications += 1
-
-        print("\n=== Итоги обработки всех заявок ===")
-        print(f"Общее время ожидания: {total_waiting_time}")
-        print(f"Общее время обслуживания: {total_service_time}")
-        print(f"Общее время в системе: {total_system_time}")
-        print(f"Обработано заявок: {processed_applications}")
 
         if processed_applications > 0:
             average_waiting_time = total_waiting_time / processed_applications
             average_processing_time = total_service_time / processed_applications
-            average_system_time = total_system_time / processed_applications
-            print(f"Среднее время ожидания: {average_waiting_time}")
-            print(f"Среднее время обслуживания: {average_processing_time}")
-            print(f"Среднее время в системе: {average_system_time}")
+            variance_waiting_time = sum(
+                (wt - average_waiting_time) ** 2 for wt in waiting_times) / processed_applications
+            variance_processing_time = sum(
+                (st - average_processing_time) ** 2 for st in service_times) / processed_applications
         else:
-            average_waiting_time = average_processing_time = average_system_time = 0
-            print("Заявок для обработки не найдено.")
+            average_waiting_time = average_processing_time = variance_waiting_time = variance_processing_time = 0
 
-        print("=== Конец расчета статистики ===\n")
-
-        return average_waiting_time, average_processing_time, average_system_time
+        return average_waiting_time, average_processing_time, variance_waiting_time, variance_processing_time
 
 class School:
     def __init__(self, name):
@@ -645,13 +698,23 @@ class ArtSchoolApp:
         teacher_summary_label.pack(pady=10)
 
     def show_time_statistics(self):
-        average_waiting_time, average_processing_time, average_system_time = ApplicationQueue.calculate_statistics()
+        (
+            average_waiting_time,
+            average_processing_time,
+            variance_waiting_time,
+            variance_processing_time,
+        ) = ApplicationQueue.calculate_statistics()
+
+        average_system_time = average_waiting_time + average_processing_time
+
         stats_message = f"""
         Среднее время ожидания (Tож): {average_waiting_time:.2f} секунд
         Среднее время обслуживания (Tобсл): {average_processing_time:.2f} секунд
-        Среднее время в системе (Tвс): {average_system_time:.2f} секунд
+        Среднее время в системе (Твс): {average_system_time:2f} секунд
+        Дисперсия времени ожидания (Dож): {variance_waiting_time:.2f}
+        Дисперсия времени обслуживания (Dобсл): {variance_processing_time:.2f}
         """
-        messagebox.showinfo("Временные статистики", stats_message)
+        messagebox.showinfo("Временная статистика", stats_message)
 
 def generate_applications(school, app_instance, students_pool):
     application_count = 0
@@ -730,7 +793,7 @@ def manage_courses_and_teachers(school, app_instance):
 
             ApplicationQueue.process_queue()
 
-        sleep(9)
+        sleep(8)
 
 def main():
     course1 = Course("Painting", capacity=2)
