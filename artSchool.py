@@ -123,9 +123,6 @@ class Course:
         self.capacity = capacity
         self.enrolled_students = []
         self.teacher = None
-        self.teacher_assigned_time = None
-        self.teacher_start_time = None
-        self.teacher_end_time = None
         self.school = school
 
     def check_availability(self):
@@ -145,9 +142,8 @@ class Course:
 
     def assign_teacher(self, teacher):
         self.teacher = teacher
-        self.teacher_assigned_time = time.time()
-        self.teacher_start_time = time.time()
-        teacher.start_work_on_course()
+        self.teacher.start_work_on_courses[self.title] = time.time()
+        print(f"назначен {self.teacher.start_work_on_courses} на курс {self.title}")
         ActionLogger.add_entry(
             source="Course",
             action="Назначен преподаватель",
@@ -191,8 +187,18 @@ class Course:
     def remove_teacher(self, school):
         if self.teacher:
             removed_teacher = self.teacher
-            self.teacher_end_time = time.time()  # Завершаем отслеживание времени работы на курсе
-            self.teacher.end_work_on_course()  # Завершаем работу преподавателя на курсе
+            self.teacher.end_work_on_courses[self.title] = time.time()
+            print(f"удален {self.teacher.end_work_on_courses} c курсa {self.title}")
+
+            if self.title in self.teacher.start_work_on_courses:
+                start_time = self.teacher.start_work_on_courses[self.title]
+                end_time = self.teacher.end_work_on_courses[self.title]
+                self.teacher.time_intervals.append((start_time, end_time))
+                print(f"интервал {self.teacher.start_work_on_courses} и {self.teacher.end_work_on_courses}")
+                print(f"Интервал для курса {self.title}: {start_time} - {end_time}")
+                difference = end_time - start_time
+                print(f"разница {difference}")
+
             self.teacher = None #############################
             ActionLogger.add_entry(
                 source="Course",
@@ -200,6 +206,18 @@ class Course:
                 details=f"Преподаватель {removed_teacher.name} был удалён с курса {self.title}"
             )
             school.assign_next_teacher(self)
+
+    def calculate_idle_time(self):
+        total_time = time.time() - self.teacher.start_work_on_courses.get(self.title, time.time())
+        total_work_time = 0
+
+        for course_title, start_time in self.teacher.start_work_on_courses.items():
+            end_time = self.teacher.end_work_on_courses.get(course_title, time.time())
+            total_work_time += end_time - start_time
+
+        idle_time = total_time - total_work_time
+        print(f"Преподаватель {self.teacher.name} не работает на курсах: {idle_time} секунд")
+        return idle_time
 class ApplicationQueue:
     applications = []
     processed_applications = []
@@ -345,7 +363,7 @@ class School:
         self.teachers = []
         self.teacher_index = 0
         self.total_assignments = 0
-        self.start_time = time.time()  # Время начала работы школы
+        self.start_time = time.time()
 
     def add_teacher(self, teacher):
         teacher.assignment_count = 0
@@ -403,51 +421,33 @@ class School:
     def calculate_teacher_load(self):
         teacher_load = {}
         for teacher in self.teachers:
+            time_all_courses = 0
+            idle_time = 0
             total_time = 0
             for course in self.courses:
                 if course.teacher == teacher:
-                    # Рассчитываем время работы на курсе
-                    if course.teacher_start_time:
-                        time_on_course = time.time() - course.teacher_start_time
-                        total_time += time_on_course
-
-            # Загрузка = время работы / общее время с момента назначения
-            load = total_time / (time.time() - teacher.assignment_time) if total_time > 0 else 0
+                    # Проверяем, есть ли время начала работы на этом курсе
+                    if course.teacher.start_work_on_courses.get(course.title):
+                        time_on_course = time.time() - course.teacher.start_work_on_courses[course.title]
+                        time_all_courses += time_on_course
+                        idle_time = course.calculate_idle_time()
+            print(f"время на курсах {time_all_courses} (без отдыха)")
+            total_time += (time_all_courses + idle_time)
+            # Загрузка = время работы без отдыха / общее время с отдыхом
+            load = time_all_courses / total_time if time_all_courses > 0 else 0
             teacher_load[teacher.name] = load * 100  # Выражаем в процентах
 
         return teacher_load
+
 
 class Teacher:
     def __init__(self, name, subject, assignment_time=None):
         self.name = name
         self.subject = subject
         self.assignment_count = 0
-        self.assignment_time = assignment_time or time.time()
-        self.total_work_time = 0
-        self.assignment_start_time = None
-        self.assignment_end_time = None
-        self.course_times = {}
-
-    def start_work_on_course(self):
-        self.assignment_start_time = time.time()
-
-    def end_work_on_course(self):
-        if self.assignment_start_time:
-            self.assignment_end_time = time.time()
-            work_duration = self.assignment_end_time - self.assignment_start_time
-            self.total_work_time += work_duration
-            self.assignment_start_time = None ###########################
-
-    def get_work_time_for_course(self, course):
-        return self.course_times.get(course.title, 0)
-
-    def record_course_time(self, course, time_spent):
-        if course.title not in self.course_times:
-            self.course_times[course.title] = 0
-        self.course_times[course.title] += time_spent
-
-    def get_total_time_spent(self):
-        return sum(self.course_times.values())
+        self.start_work_on_courses = {}
+        self.end_work_on_courses = {}
+        self.time_intervals = []
 
 class ArtSchoolApp:
     paused = False
