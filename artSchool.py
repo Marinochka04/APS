@@ -106,7 +106,7 @@ class Application:
 
         self.service_completed_time = time.time()
         service_time = self.service_completed_time - self.service_start_time
-        details = f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {service_time:.2f} секунд"
+        #details = f"Заявка {self.id} ({self.student.name}) завершено обслуживание заявки на курсе {self.course.title} в {service_time:.2f} секунд"
 
         # ActionLogger.add_entry(
         #     source="Application",
@@ -143,7 +143,7 @@ class Course:
     def assign_teacher(self, teacher):
         self.teacher = teacher
         self.teacher.start_work_on_courses[self.title] = time.time()
-        print(f"назначен {self.teacher.start_work_on_courses} на курс {self.title}")
+        print(f"{teacher.name} назначен {teacher.start_work_on_courses} на курс {self.title}")
         ActionLogger.add_entry(
             source="Course",
             action="Назначен преподаватель",
@@ -180,24 +180,23 @@ class Course:
             )
             if related_application:
                 related_application.complete_service_process()
-                print(f"Лог заявки: {ActionLogger.log[-1]}")
+                #print(f"Лог заявки: {ActionLogger.log[-1]}")
             else:
                 print(f"Связанная заявка для студента {student.name} не найдена.")
 
     def remove_teacher(self, school):
         if self.teacher:
             removed_teacher = self.teacher
-            self.teacher.end_work_on_courses[self.title] = time.time()
-            print(f"удален {self.teacher.end_work_on_courses} c курсa {self.title}")
+            end_time = time.time()
+            self.teacher.end_work_on_courses[self.title] = end_time
+            print(f"{self.teacher.name} удален {self.teacher.end_work_on_courses} c курсa {self.title}")
 
             if self.title in self.teacher.start_work_on_courses:
                 start_time = self.teacher.start_work_on_courses[self.title]
-                end_time = self.teacher.end_work_on_courses[self.title]
                 self.teacher.time_intervals.append((start_time, end_time))
-                print(f"интервал {self.teacher.start_work_on_courses} и {self.teacher.end_work_on_courses}")
-                print(f"Интервал для курса {self.title}: {start_time} - {end_time}")
+                print(f"Добавлен интервал работы преподавателя {removed_teacher.name}: {self.teacher.start_work_on_courses} и {self.teacher.end_work_on_courses}")
                 difference = end_time - start_time
-                print(f"разница {difference}")
+                print(f"Протяженность интервала {difference}")
 
             self.teacher = None #############################
             ActionLogger.add_entry(
@@ -207,17 +206,17 @@ class Course:
             )
             school.assign_next_teacher(self)
 
-    def calculate_idle_time(self):
-        total_time = time.time() - self.teacher.start_work_on_courses.get(self.title, time.time())
-        total_work_time = 0
-
-        for course_title, start_time in self.teacher.start_work_on_courses.items():
-            end_time = self.teacher.end_work_on_courses.get(course_title, time.time())
-            total_work_time += end_time - start_time
-
-        idle_time = total_time - total_work_time
-        print(f"Преподаватель {self.teacher.name} не работает на курсах: {idle_time} секунд")
-        return idle_time
+    # def calculate_idle_time(self):
+    #     total_time = time.time() - self.teacher.start_work_on_courses.get(self.title, time.time())
+    #     total_work_time = 0
+    #
+    #     for course_title, start_time in self.teacher.start_work_on_courses.items():
+    #         end_time = self.teacher.end_work_on_courses.get(course_title, time.time())
+    #         total_work_time += end_time - start_time
+    #
+    #     idle_time = total_time - total_work_time
+    #     print(f"Преподаватель {self.teacher.name} не работает на курсах: {idle_time} секунд")
+    #     return idle_time
 class ApplicationQueue:
     applications = []
     processed_applications = []
@@ -421,24 +420,39 @@ class School:
     def calculate_teacher_load(self):
         teacher_load = {}
         for teacher in self.teachers:
-            time_all_courses = 0
-            idle_time = 0
-            total_time = 0
-            for course in self.courses:
-                if course.teacher == teacher:
-                    # Проверяем, есть ли время начала работы на этом курсе
-                    if course.teacher.start_work_on_courses.get(course.title):
-                        time_on_course = time.time() - course.teacher.start_work_on_courses[course.title]
-                        time_all_courses += time_on_course
-                        idle_time = course.calculate_idle_time()
-            print(f"время на курсах {time_all_courses} (без отдыха)")
-            total_time += (time_all_courses + idle_time)
-            # Загрузка = время работы без отдыха / общее время с отдыхом
-            load = time_all_courses / total_time if time_all_courses > 0 else 0
-            teacher_load[teacher.name] = load * 100  # Выражаем в процентах
+            total_time_school = time.time() - self.start_time
+            print(f"Общее время работы школы: {total_time_school}")
+
+            merged_intervals = teacher.merge_intervals(teacher.time_intervals)
+            print(f"Объединённые интервалы для {teacher.name}: {merged_intervals}")
+
+            total_work_time = sum(end - start for start, end in merged_intervals)
+            print(f"Суммарное рабочее время преподавателя {teacher.name}: {total_work_time}")
+
+            idle_time = total_time_school - total_work_time
+            print(f"Idle time преподавателя {teacher.name}: {idle_time}")
+
+            load = (total_work_time / total_time_school) * 100 if total_time_school > 0 else 0
+            teacher_load[teacher.name] = load
+            print(f"Загрузка преподавателя {teacher.name}: {load}%")
 
         return teacher_load
 
+    def finish_all_teachers_work(self):
+        # Завершаем работу всех преподавателей
+        for teacher in self.teachers:
+            # Если преподаватель работает на курсе, завершаем его работу
+            for course in self.courses:
+                if course.teacher == teacher:
+                    course.remove_teacher(self)
+
+            # Добавляем все текущие активные интервалы в merged_intervals
+            current_time = time.time()
+            for course, start_time in teacher.start_work_on_courses.items():
+                if course not in teacher.end_work_on_courses:
+                    teacher.time_intervals.append((start_time, current_time))
+                    print(
+                        f"Добавлен текущий активный интервал для преподавателя {teacher.name} на курс {course}: ({start_time}, {current_time})")
 
 class Teacher:
     def __init__(self, name, subject, assignment_time=None):
@@ -448,6 +462,74 @@ class Teacher:
         self.start_work_on_courses = {}
         self.end_work_on_courses = {}
         self.time_intervals = []
+
+    # def merge_intervals(self, intervals):
+    #     if not intervals:
+    #         return []
+    #
+    #     intervals.sort(key=lambda x: x[0])
+    #     merged = [intervals[0]]
+    #
+    #     for current in intervals[1:]:
+    #         last = merged[-1]
+    #         if current[0] <= last[1]:
+    #             merged[-1] = (last[0], max(last[1], current[1]))
+    #         else:
+    #             merged.append(current)
+    #
+    #     return merged
+
+    def merge_intervals(self, intervals):
+        if not intervals:
+            print("Список интервалов пуст.")
+            return []
+
+        # Проверяем, есть ли текущий активный интервал для курсов без окончания
+        current_time = time.time()
+        for course, start_time in self.start_work_on_courses.items():
+            # Проверяем, если курс в процессе работы (нет времени окончания)
+            if course not in self.end_work_on_courses:
+                intervals.append((start_time, current_time))
+                print(f"Добавлен текущий активный интервал: ({start_time}, {current_time}) для курса {course}")
+
+        print(f"Исходные интервалы: {intervals}")
+        # Сортируем интервалы по времени начала
+        intervals.sort(key=lambda x: x[0])
+        print(f"Отсортированные интервалы: {intervals}")
+
+        merged = [intervals[0]]
+        print(f"Инициализация: первый интервал {merged[0]} добавлен в список объединённых.")
+
+        for i, current in enumerate(intervals[1:], start=1):
+            last = merged[-1]
+            print(f"\nОбрабатываемый интервал {i}: {current}")
+            print(f"Последний объединённый интервал: {last}")
+
+            if current[0] <= last[1]:
+                # Интервалы пересекаются, объединяем
+                merged[-1] = (last[0], max(last[1], current[1]))
+                print(f"Объединение: новый интервал {merged[-1]}")
+            else:
+                # Нет пересечения, добавляем как новый
+                merged.append(current)
+                print(f"Добавление: интервал {current} добавлен как новый.")
+
+        print(f"\nИтоговые объединённые интервалы: {merged}")
+        return merged
+
+    def calculate_idle_time(self, school):
+        total_time_school = time.time() - school.start_time
+
+        # Объединяем интервалы времени работы преподавателя
+        merged_intervals = self.merge_intervals(self.time_intervals)
+
+        # Вычисляем суммарное время работы
+        total_work_time = sum(end - start for start, end in merged_intervals)
+
+        # Время бездействия
+        idle_time = total_time_school - total_work_time
+        print(f"Преподаватель {self.name}  не  работает: {idle_time} секунд")
+        return max(0, idle_time)
 
 class ArtSchoolApp:
     paused = False
@@ -670,6 +752,8 @@ class ArtSchoolApp:
         student_summary_label.pack(pady=10)
 
     def show_teacher_summary_table(self):
+        self.school.finish_all_teachers_work()
+
         teacher_summary_window = tk.Toplevel(self.root)
         teacher_summary_window.title("Коэффициент использования преподавателей")
         teacher_summary_window.geometry("600x400")
