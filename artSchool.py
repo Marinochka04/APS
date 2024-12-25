@@ -490,20 +490,6 @@ class Teacher:
         print(f"\nИтоговые объединённые интервалы: {merged}")
         return merged
 
-    def calculate_idle_time(self, school):
-        total_time_school = time.time() - school.start_time
-
-        # Объединяем интервалы времени работы преподавателя
-        merged_intervals = self.merge_intervals(self.time_intervals)
-
-        # Вычисляем суммарное время работы
-        total_work_time = sum(end - start for start, end in merged_intervals)
-
-        # Время бездействия
-        idle_time = total_time_school - total_work_time
-        print(f"Преподаватель {self.name}  не  работает: {idle_time} секунд")
-        return max(0, idle_time)
-
 class ArtSchoolApp:
     paused = False
 
