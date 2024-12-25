@@ -206,17 +206,6 @@ class Course:
             )
             school.assign_next_teacher(self)
 
-    # def calculate_idle_time(self):
-    #     total_time = time.time() - self.teacher.start_work_on_courses.get(self.title, time.time())
-    #     total_work_time = 0
-    #
-    #     for course_title, start_time in self.teacher.start_work_on_courses.items():
-    #         end_time = self.teacher.end_work_on_courses.get(course_title, time.time())
-    #         total_work_time += end_time - start_time
-    #
-    #     idle_time = total_time - total_work_time
-    #     print(f"Преподаватель {self.teacher.name} не работает на курсах: {idle_time} секунд")
-    #     return idle_time
 class ApplicationQueue:
     applications = []
     processed_applications = []
@@ -462,22 +451,6 @@ class Teacher:
         self.start_work_on_courses = {}
         self.end_work_on_courses = {}
         self.time_intervals = []
-
-    # def merge_intervals(self, intervals):
-    #     if not intervals:
-    #         return []
-    #
-    #     intervals.sort(key=lambda x: x[0])
-    #     merged = [intervals[0]]
-    #
-    #     for current in intervals[1:]:
-    #         last = merged[-1]
-    #         if current[0] <= last[1]:
-    #             merged[-1] = (last[0], max(last[1], current[1]))
-    #         else:
-    #             merged.append(current)
-    #
-    #     return merged
 
     def merge_intervals(self, intervals):
         if not intervals:
